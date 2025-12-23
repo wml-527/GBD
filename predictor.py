@@ -179,31 +179,21 @@ if st.button("Predict"):
     st.write(advice)
 
 
-# SHAP 解释（轻量HTML版，无matplotlib）
-st.subheader("SHAP Force Plot Explanation")
-
-# 1. 校验特征长度（先确保无维度问题）
-feat_df = pd.DataFrame([feature_values], columns=feature_names)
-st.write(f"特征数量：{len(feature_names)} | 输入值数量：{len(feature_values)}")
-if len(feature_names) != len(feature_values):
-    st.error(f"特征数量不匹配！特征名{len(feature_names)}个，输入值{len(feature_values)}个")
-else:
-    # 2. 初始化解释器+计算SHAP值（GBD模型专用）
+ # SHAP 解释
+    st.subheader("SHAP Force Plot Explanation")
+    # 创建 SHAP 解释器，基于树模型（如随机森林）
     explainer_shap = shap.TreeExplainer(model)
-    shap_values = explainer_shap.shap_values(feat_df)  # 维度(1, 特征数)
-    
-    # 3. 核心：用SHAP原生HTML显示力图（无matplotlib，零崩溃）
-    # 生成HTML格式的力图
-    shap_html = shap.force_plot(
-        explainer_shap.expected_value,  # 基准值（标量）
-        shap_values[0],                 # 单样本SHAP值（一维数组）
-        feat_df,
-        show=False,                     # 不自动显示
-        matplotlib=False                # 禁用matplotlib，用HTML
-    ).html()
-    
-    # Streamlit显示HTML（适配云端）
-    st.components.v1.html(shap_html, height=200, scrolling=True)
+    # 计算 SHAP 值，用于解释模型的预测
+    shap_values = explainer_shap.shap_values(pd.DataFrame([feature_values], columns=feature_names))
+
+    # 根据预测类别显示 SHAP 强制图
+    if predicted_class == 1:
+        shap.force_plot(explainer_shap.expected_value[1], shap_values[...,1], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
+    else:
+        shap.force_plot(explainer_shap.expected_value[0], shap_values[...,0], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
+
+    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
+    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
 
 
 # In[2]:
