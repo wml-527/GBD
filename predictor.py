@@ -24,13 +24,7 @@ import matplotlib.pyplot as plt
 
 import io  # 用于缓冲区保存图片
 
-plt.switch_backend('Agg')  # 避免绘图后端冲突
-plt.rcParams['font.sans-serif'] = ['DejaVu Sans']  # 避开中文字体解析错误（关键）
 
-# 云端绘图核心配置（必须加）
-plt.switch_backend('Agg')  # 强制无界面后端
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
-plt.rcParams['font.family'] = 'sans-serif'
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
@@ -184,35 +178,20 @@ if st.button("Predict"):
 
 
 # SHAP 解释
-st.subheader("SHAP Force Plot Explanation")
+    st.subheader("SHAP Force Plot Explanation")
+    # 创建 SHAP 解释器，基于树模型（如随机森林）
+    explainer_shap = shap.TreeExplainer(model)
+    # 计算 SHAP 值，用于解释模型的预测
+    shap_values = explainer_shap.shap_values(pd.DataFrame([feature_values], columns=feature_names))
 
-# 1. 构造特征数据（确保和模型训练的特征顺序/数量一致）
-feat_df = pd.DataFrame([feature_values], columns=feature_names)
+    # 根据预测类别显示 SHAP 强制图
+    if predicted_class == 1:
+        shap.force_plot(explainer_shap.expected_value[1], shap_values[...,1], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
+    else:
+        shap.force_plot(explainer_shap.expected_value[0], shap_values[...,0], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
 
-# 2. 初始化解释器+计算SHAP值（极简写法）
-explainer = shap.TreeExplainer(model)
-shap_vals = explainer.shap_values(feat_df)
-
-# 【调试维度（可选，验证用）】Streamlit页面显示维度，确认无问题
-st.write("SHAP值维度：", np.array(shap_vals).shape)  # 应输出 (1, 特征数) 如(1,17)
-st.write("基准值类型：", type(explainer.expected_value))  # 应输出 <class 'float'>
-
-# 3. 绘制力图（去掉ax参数，避免TypeError）
-plt.clf()  # 清空所有画布
-shap.force_plot(
-    explainer.expected_value,  # 基准值（标量）
-    shap_vals[0],              # 单样本SHAP值（一维数组）
-    feat_df,                   # 特征数据
-    matplotlib=True,
-    show=False                 # 关闭自动显示
-)
-
-# 4. 保存+显示（极简版）
-buf = io.BytesIO()
-plt.savefig(buf, format='png', dpi=300, bbox_inches='tight')
-buf.seek(0)
-st.image(buf, caption='SHAP Force Plot')
-plt.close()  # 释放资源
+    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
+    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
 
 
 # In[2]:
