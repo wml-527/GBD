@@ -173,22 +173,37 @@ if st.button("Predict"):
     # 显示建议
     st.write(advice)
 
-
+import io  # 用于缓冲区保存图片
     # SHAP 解释
-    st.subheader("SHAP Force Plot Explanation")
-    # 创建 SHAP 解释器，基于树模型（如随机森林）
-    explainer_shap = shap.TreeExplainer(model)
-    # 计算 SHAP 值，用于解释模型的预测
-    shap_values = explainer_shap.shap_values(pd.DataFrame([feature_values], columns=feature_names))
+st.subheader("SHAP Force Plot Explanation")
+# 创建 SHAP 解释器，基于树模型
+explainer_shap = shap.TreeExplainer(model)
+# 计算 SHAP 值（确保输入是DataFrame）
+feat_df = pd.DataFrame([feature_values], columns=feature_names)
+shap_values = explainer_shap.shap_values(feat_df)
 
-    # 根据预测类别显示 SHAP 强制图
-    if predicted_class == 1:
-        shap.force_plot(explainer_shap.expected_value[1], shap_values[...,1], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
-    else:
-        shap.force_plot(explainer_shap.expected_value[0], shap_values[...,0], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
+# 核心修正：GBD模型的SHAP值无类别维度，无需按类别切片
+base_value = explainer_shap.expected_value  # 标量，去掉[0]/[1]索引
+single_sample_shap = shap_values[0, :]      # 一维SHAP值，去掉[...,0]/[...,1]切片
 
-    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
-    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
+# 绘制SHAP力图（适配云端，关闭自动显示）
+plt.clf()  # 清空画布，避免重复绘图
+shap.force_plot(
+    base_value,
+    single_sample_shap,
+    feat_df,
+    matplotlib=True,
+    show=False  # 关键：云端必须加，否则绘图报错
+)
+
+# 核心修正：用缓冲区保存（云端不能写本地文件）
+buf = io.BytesIO()
+plt.tight_layout()
+plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
+buf.seek(0)  # 重置缓冲区指针
+
+# 显示图片（从缓冲区读取，而非本地文件）
+st.image(buf, caption='SHAP Force Plot Explanation')'SHAP Force Plot Explanation')
 
 
 # In[2]:
