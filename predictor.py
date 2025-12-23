@@ -168,34 +168,49 @@ if st.button("Predict"):
     st.write(advice)
 
 
-# SHAP 解释
+# SHAP 解释（最终修复版）
 st.subheader("SHAP Force Plot Explanation")
 import numpy as np
+import pandas as pd
+import shap
 import matplotlib.pyplot as plt
 
-# 1. 准备单样本特征表格（避免重复构造）
+# ========== 1. 固定配置（和你模型一致） ==========
+MODEL_FEATURE_NUM = 17  # 模型训练的17个特征
+# 强制初始化matplotlib（解决画布NoneType错误）
+plt.switch_backend('Agg')  # 适配Streamlit的无界面绘图
+plt.rcParams['figure.figsize'] = (16, 5)  # 图大小
+plt.rcParams['font.family'] = 'DejaVu Sans'  # 避免中文乱码
+
+# ========== 2. 构造特征表格（确保格式正确） ==========
 feature_df = pd.DataFrame([feature_values], columns=feature_names)
 
-# 2. 创建 SHAP 解释器
+# ========== 3. 计算SHAP值+处理格式 ==========
 explainer_shap = shap.TreeExplainer(GBD)  # GBD是你训练好的模型
+shap_values = explainer_shap.shap_values(feature_df)  # 原始SHAP值：(1,17)
 
-# 3. 计算单样本SHAP值（核心改1：直接传feature_df，不是重复构造）
-shap_values = explainer_shap.shap_values(feature_df)
+# 处理SHAP值：转成一维数组（17个值）
+shap_vals_1d = shap_values.flatten()  # 把[[a,b,c...]]转成[a,b,c...]
 
-# 4. 绘图（核心改2：去掉[...,0]/[...,1]！因为SHAP值只有2维(1,17)）
-plt.figure(figsize=(15, 4))  # 加图大小，避免显示不全
+# 处理基准值：二分类模型expected_value是[0类基准,1类基准]，取预测类别的单个值
+base_value = explainer_shap.expected_value[predicted_class]
+
+# ========== 4. 绘图（核心：格式完全匹配） ==========
+fig, ax = plt.subplots()  # 显式创建画布，解决NoneType错误
 if predicted_class == 1:
-    # 正类：用基准值[1] + 原始SHAP值
-    shap.force_plot(explainer_shap.expected_value[1], shap_values, feature_df, matplotlib=True)
+    # 正类：用原始SHAP值
+    shap.force_plot(base_value, shap_vals_1d, feature_df, matplotlib=True, ax=ax)
 else:
-    # 负类：用基准值[0] + SHAP值取反（因为默认SHAP值是正类贡献）
-    shap.force_plot(explainer_shap.expected_value[0], -shap_values, feature_df, matplotlib=True)
+    # 负类：SHAP值取反（二分类负类贡献与正类相反）
+    shap.force_plot(base_value, -shap_vals_1d, feature_df, matplotlib=True, ax=ax)
 
-# 5. 保存+显示图片（核心改3：加plt.close()避免缓存问题）
-plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
-st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
-plt.close()  # 关闭画布，避免Streamlit重复绘图
+# ========== 5. 保存+显示（避免缓存/截断） ==========
+plt.tight_layout()  # 自动调整布局，防止文字截断
+plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=300)
+plt.close(fig)  # 关闭画布，避免内存泄漏
 
+# 在Streamlit显示图片
+st.image("shap_force_plot.png", caption=f"SHAP Force Plot（预测类别：{predicted_class}）", use_column_width=True)
 
 # In[2]:
 
