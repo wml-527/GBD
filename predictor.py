@@ -24,6 +24,8 @@ import matplotlib.pyplot as plt
 
 import io  # 用于缓冲区保存图片
 
+import streamlit.components.v1 as components  # 用于显示SHAP的HTML
+
 
 
 # 加载训练好的模型（GBD.pkl）
@@ -177,43 +179,31 @@ if st.button("Predict"):
     st.write(advice)
 
 
-# SHAP 解释
+# SHAP 解释（轻量HTML版，无matplotlib）
 st.subheader("SHAP Force Plot Explanation")
 
-# ========== 第一步：强制校验特征长度（关键！避免维度不匹配） ==========
+# 1. 校验特征长度（先确保无维度问题）
 feat_df = pd.DataFrame([feature_values], columns=feature_names)
-st.write(f"特征数量：{len(feature_names)} | 输入值数量：{len(feature_values)}")  # 调试用，确认数量一致
+st.write(f"特征数量：{len(feature_names)} | 输入值数量：{len(feature_values)}")
 if len(feature_names) != len(feature_values):
-    st.error(f"特征数量不匹配！特征名长度{len(feature_names)}，输入值长度{len(feature_values)}")
+    st.error(f"特征数量不匹配！特征名{len(feature_names)}个，输入值{len(feature_values)}个")
 else:
-    # ========== 第二步：初始化解释器+计算SHAP值（修正维度） ==========
+    # 2. 初始化解释器+计算SHAP值（GBD模型专用）
     explainer_shap = shap.TreeExplainer(model)
-    shap_values = explainer_shap.shap_values(feat_df)  # 输出维度：(1, 特征数)
+    shap_values = explainer_shap.shap_values(feat_df)  # 维度(1, 特征数)
     
-    # 核心修正：GBD模型无类别维度，直接取单样本SHAP值（一维数组）
-    base_value = explainer_shap.expected_value  # 标量，去掉[0]/[1]
-    single_shap = shap_values[0, :]  # 取第一个样本的所有特征SHAP值（长度=特征数）
-    
-    # ========== 第三步：绘制+保存力图（适配云端） ==========
-    plt.switch_backend('Agg')  # 云端强制绘图后端
-    plt.clf()  # 清空画布
-    # 绘制力图（无类别切片，无多余参数）
-    shap.force_plot(
-        base_value,
-        single_shap,
+    # 3. 核心：用SHAP原生HTML显示力图（无matplotlib，零崩溃）
+    # 生成HTML格式的力图
+    shap_html = shap.force_plot(
+        explainer_shap.expected_value,  # 基准值（标量）
+        shap_values[0],                 # 单样本SHAP值（一维数组）
         feat_df,
-        matplotlib=True,
-        show=False  # 关闭自动显示
-    )
+        show=False,                     # 不自动显示
+        matplotlib=False                # 禁用matplotlib，用HTML
+    ).html()
     
-    # 云端缓冲区保存（替代本地文件写入）
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
-    buf.seek(0)
-    
-    # 显示图片
-    st.image(buf, caption='SHAP Force Plot Explanation')
-    plt.close()  # 释放资源
+    # Streamlit显示HTML（适配云端）
+    st.components.v1.html(shap_html, height=200, scrolling=True)
 
 
 # In[2]:
