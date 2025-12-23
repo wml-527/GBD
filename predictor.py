@@ -27,6 +27,11 @@ import io  # 用于缓冲区保存图片
 plt.switch_backend('Agg')  # 避免绘图后端冲突
 plt.rcParams['font.sans-serif'] = ['DejaVu Sans']  # 避开中文字体解析错误（关键）
 
+# 云端绘图核心配置（必须加）
+plt.switch_backend('Agg')  # 强制无界面后端
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+plt.rcParams['font.family'] = 'sans-serif'
+
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
 
@@ -180,36 +185,34 @@ if st.button("Predict"):
 
 # SHAP 解释
 st.subheader("SHAP Force Plot Explanation")
-# 创建 SHAP 解释器
-explainer_shap = shap.TreeExplainer(model)
-# 构造特征数据
+
+# 1. 构造特征数据（确保和模型训练的特征顺序/数量一致）
 feat_df = pd.DataFrame([feature_values], columns=feature_names)
-# 计算SHAP值
-shap_values = explainer_shap.shap_values(feat_df)
 
-# 修正维度（GBD模型无类别维度）
-base_value = explainer_shap.expected_value
-single_sample_shap = shap_values[0, :]
+# 2. 初始化解释器+计算SHAP值（极简写法）
+explainer = shap.TreeExplainer(model)
+shap_vals = explainer.shap_values(feat_df)
 
-# 绘制SHAP力图（极简版，避开所有布局坑）
-fig, ax = plt.subplots(figsize=(12, 4))  # 固定画布大小，无需tight_layout
+# 【调试维度（可选，验证用）】Streamlit页面显示维度，确认无问题
+st.write("SHAP值维度：", np.array(shap_vals).shape)  # 应输出 (1, 特征数) 如(1,17)
+st.write("基准值类型：", type(explainer.expected_value))  # 应输出 <class 'float'>
+
+# 3. 绘制力图（去掉ax参数，避免TypeError）
+plt.clf()  # 清空所有画布
 shap.force_plot(
-    base_value,
-    single_sample_shap,
-    feat_df,
+    explainer.expected_value,  # 基准值（标量）
+    shap_vals[0],              # 单样本SHAP值（一维数组）
+    feat_df,                   # 特征数据
     matplotlib=True,
-    ax=ax,  # 指定画布，避免自动创建多画布
-    show=False
+    show=False                 # 关闭自动显示
 )
 
-# 保存图片（去掉tight_layout，直接保存）
+# 4. 保存+显示（极简版）
 buf = io.BytesIO()
-plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
+plt.savefig(buf, format='png', dpi=300, bbox_inches='tight')
 buf.seek(0)
-
-# 显示图片
-st.image(buf, caption='SHAP Force Plot Explanation')
-plt.close(fig)  # 关闭画布，释放资源
+st.image(buf, caption='SHAP Force Plot')
+plt.close()  # 释放资源
 
 
 # In[2]:
