@@ -168,49 +168,82 @@ if st.button("Predict"):
     st.write(advice)
 
 
-# SHAP 解释（最终修复版）
+# SHAP 解释（终极修复版，复制即用）
 st.subheader("SHAP Force Plot Explanation")
 import numpy as np
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
 
-# ========== 1. 固定配置（和你模型一致） ==========
-MODEL_FEATURE_NUM = 17  # 模型训练的17个特征
-# 强制初始化matplotlib（解决画布NoneType错误）
-plt.switch_backend('Agg')  # 适配Streamlit的无界面绘图
-plt.rcParams['figure.figsize'] = (16, 5)  # 图大小
-plt.rcParams['font.family'] = 'DejaVu Sans'  # 避免中文乱码
+# ========== 关键配置：解决画布和字体问题 ==========
+plt.switch_backend('Agg')  # 强制使用无界面后端，适配Streamlit
+plt.rcParams['figure.figsize'] = (18, 6)  # 更大的图，避免文字拥挤
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei', 'WenQuanYi Zen Hei']  # 优先英文，适配中文
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
-# ========== 2. 构造特征表格（确保格式正确） ==========
-feature_df = pd.DataFrame([feature_values], columns=feature_names)
-
-# ========== 3. 计算SHAP值+处理格式 ==========
-explainer_shap = shap.TreeExplainer(GBD)  # GBD是你训练好的模型
-shap_values = explainer_shap.shap_values(feature_df)  # 原始SHAP值：(1,17)
-
-# 处理SHAP值：转成一维数组（17个值）
-shap_vals_1d = shap_values.flatten()  # 把[[a,b,c...]]转成[a,b,c...]
-
-# 处理基准值：二分类模型expected_value是[0类基准,1类基准]，取预测类别的单个值
-base_value = explainer_shap.expected_value[predicted_class]
-
-# ========== 4. 绘图（核心：格式完全匹配） ==========
-fig, ax = plt.subplots()  # 显式创建画布，解决NoneType错误
-if predicted_class == 1:
-    # 正类：用原始SHAP值
-    shap.force_plot(base_value, shap_vals_1d, feature_df, matplotlib=True, ax=ax)
+# ========== 1. 严格校验+构造特征数据 ==========
+MODEL_FEATURE_NUM = 17  # 固定模型特征数（你的数据集是17个）
+# 双重校验：确保特征值、特征名数量都是17
+if len(feature_values) != MODEL_FEATURE_NUM or len(feature_names) != MODEL_FEATURE_NUM:
+    st.error(f"❌ 特征数量错误！需要{MODEL_FEATURE_NUM}个，当前特征值：{len(feature_values)}个，特征名：{len(feature_names)}个")
 else:
-    # 负类：SHAP值取反（二分类负类贡献与正类相反）
-    shap.force_plot(base_value, -shap_vals_1d, feature_df, matplotlib=True, ax=ax)
+    feature_df = pd.DataFrame([feature_values], columns=feature_names)
+    st.success(f"✅ 特征校验通过！共{MODEL_FEATURE_NUM}个特征")
 
-# ========== 5. 保存+显示（避免缓存/截断） ==========
-plt.tight_layout()  # 自动调整布局，防止文字截断
-plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=300)
-plt.close(fig)  # 关闭画布，避免内存泄漏
+    # ========== 2. 计算SHAP值+格式强制转换 ==========
+    explainer_shap = shap.TreeExplainer(GBD)  # GBD是你训练好的模型（必须和训练时变量名一致）
+    shap_values = explainer_shap.shap_values(feature_df)  # 原始SHAP值：(1,17)
+    
+    # 强制转成一维数组（17个值），避免任何维度歧义
+    shap_vals_1d = np.array(shap_values).flatten()  # 不管原始是(1,17)还是其他，都转成[0.3,-0.2,...]
+    
+    # 处理基准值：确保是单个数字（标量）
+    if isinstance(explainer_shap.expected_value, (list, np.ndarray)):
+        base_value = explainer_shap.expected_value[predicted_class]  # 二分类取对应类别的基准值
+    else:
+        base_value = explainer_shap.expected_value
+    base_value = float(base_value)  # 强制转成浮点数，避免格式错误
 
-# 在Streamlit显示图片
-st.image("shap_force_plot.png", caption=f"SHAP Force Plot（预测类别：{predicted_class}）", use_column_width=True)
+    # ========== 3. 显式创建画布+绘图（彻底解决NoneType错误） ==========
+    fig, ax = plt.subplots(1, 1, tight_layout=True)  # 明确创建1个画布1个坐标轴
+    try:
+        # 按预测类别绘图：正类用原始SHAP值，负类取反
+        if predicted_class == 1:
+            shap.force_plot(
+                base_value,  # 标量基准值
+                shap_vals_1d,  # 一维SHAP值
+                feature_df,  # 特征表格
+                matplotlib=True,
+                ax=ax,  # 明确绑定坐标轴，避免画布丢失
+                show=False  # 不自动弹出窗口，适配Streamlit
+            )
+        else:
+            shap.force_plot(
+                base_value,
+                -shap_vals_1d,  # 负类SHAP值取反
+                feature_df,
+                matplotlib=True,
+                ax=ax,
+                show=False
+            )
+
+        # ========== 4. 保存+显示图片（避免缓存和截断） ==========
+        plt.savefig(
+            "shap_force_plot.png",
+            bbox_inches='tight',  # 自动裁剪空白
+            dpi=200,  # 降低分辨率，避免服务器资源不足
+            facecolor='white'  # 白色背景，避免透明导致的显示问题
+        )
+        st.image("shap_force_plot.png", caption=f"SHAP Force Plot（预测类别：{predicted_class}）", use_column_width=True)
+        plt.close(fig)  # 手动关闭画布，释放内存
+
+    except Exception as e:
+        # 捕获异常并显示，方便排查
+        st.error(f"❌ 绘图时出现错误：{str(e)}")
+        st.write(f"当前参数格式：")
+        st.write(f"- 基准值：{base_value}（类型：{type(base_value)}）")
+        st.write(f"- SHAP值：{shap_vals_1d}（长度：{len(shap_vals_1d)}，类型：{type(shap_vals_1d)}）")
+        st.write(f"- 特征表格：{feature_df.shape}（形状）")
 
 # In[2]:
 
