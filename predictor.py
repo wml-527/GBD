@@ -22,6 +22,10 @@ import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
 
+import io  # 用于缓冲区保存图片
+
+plt.switch_backend('Agg')  # 避免绘图后端冲突
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans']  # 避开中文字体解析错误（关键）
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
@@ -173,37 +177,39 @@ if st.button("Predict"):
     # 显示建议
     st.write(advice)
 
-import io  # 用于缓冲区保存图片
+
 # SHAP 解释
 st.subheader("SHAP Force Plot Explanation")
-# 创建 SHAP 解释器，基于树模型
+# 创建 SHAP 解释器
 explainer_shap = shap.TreeExplainer(model)
-# 计算 SHAP 值（确保输入是DataFrame）
+# 构造特征数据
 feat_df = pd.DataFrame([feature_values], columns=feature_names)
+# 计算SHAP值
 shap_values = explainer_shap.shap_values(feat_df)
 
-# 核心修正：GBD模型无类别维度，去掉[0]/[1]索引和切片
-base_value = explainer_shap.expected_value  # 标量，无索引
-single_sample_shap = shap_values[0, :]      # 一维SHAP值，无切片
+# 修正维度（GBD模型无类别维度）
+base_value = explainer_shap.expected_value
+single_sample_shap = shap_values[0, :]
 
-# 绘制SHAP力图（适配云端，关闭自动显示）
-plt.clf()  # 清空画布，避免重复绘图
+# 绘制SHAP力图（极简版，避开所有布局坑）
+fig, ax = plt.subplots(figsize=(12, 4))  # 固定画布大小，无需tight_layout
 shap.force_plot(
     base_value,
     single_sample_shap,
     feat_df,
     matplotlib=True,
-    show=False  # 云端必须加，避免绘图后端错误
+    ax=ax,  # 指定画布，避免自动创建多画布
+    show=False
 )
 
-# 用缓冲区保存（云端无本地写入权限）
+# 保存图片（去掉tight_layout，直接保存）
 buf = io.BytesIO()
-plt.tight_layout()
 plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
-buf.seek(0)  # 重置缓冲区指针
+buf.seek(0)
 
-# 显示图片（括号/引号完全匹配，无多余内容）
+# 显示图片
 st.image(buf, caption='SHAP Force Plot Explanation')
+plt.close(fig)  # 关闭画布，释放资源
 
 
 # In[2]:
