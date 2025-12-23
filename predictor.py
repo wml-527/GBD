@@ -167,29 +167,32 @@ if st.button("Predict"):
     # 显示建议
     st.write(advice)
 
-
-# SHAP 解释
+import matplotlib
+matplotlib.use('Agg')  # 非交互式后端，避免渲染冲突
+import matplotlib.pyplot as plt
+# SHAP 解释（改用HTML交互式版本，避开matplotlib渲染）
 st.subheader("SHAP Force Plot Explanation")
 # 创建 SHAP 解释器
 explainer_shap = shap.TreeExplainer(model)
 # 构造当前样本的DataFrame（保证维度匹配）
 sample_df = pd.DataFrame([feature_values], columns=feature_names)
-# 计算SHAP值（此时形状是(1,17)，和训练时一致）
+# 计算SHAP值（维度：1×17）
 shap_values = explainer_shap.shap_values(sample_df)
-# 模型基准值（是标量，不是数组）
+# 模型基准值（标量）
 base_value = explainer_shap.expected_value
 
-# 绘制SHAP Force Plot（直接用正确维度的参数）
-shap.force_plot(
-    base_value,  # 基准值（标量）
-    shap_values,  # SHAP值（1×17）
-    sample_df,    # 样本特征（1×17）
-    matplotlib=True
-)
+# 生成SHAP Force Plot的HTML（关键：不用matplotlib）
+shap_html = shap.force_plot(
+    base_value,          # 基准值
+    shap_values,         # SHAP值
+    sample_df,           # 样本特征
+    feature_names=feature_names,
+    show=False,          # 不直接显示，生成HTML字符串
+    matplotlib=False     # 彻底关闭matplotlib渲染
+).html()
 
-# 保存并显示图片
-plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=300)
-st.image("shap_force_plot.png", caption='SHAP Force Plot: Feature Contribution to Prediction')
+# Streamlit显示HTML（设置宽度/高度适配）
+st.components.v1.html(shap_html, width=800, height=200)
 
 # In[2]:
 
