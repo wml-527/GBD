@@ -178,20 +178,42 @@ if st.button("Predict"):
 
 
 # SHAP 解释
-    st.subheader("SHAP Force Plot Explanation")
-    # 创建 SHAP 解释器，基于树模型（如随机森林）
+st.subheader("SHAP Force Plot Explanation")
+
+# ========== 第一步：强制校验特征长度（关键！避免维度不匹配） ==========
+feat_df = pd.DataFrame([feature_values], columns=feature_names)
+st.write(f"特征数量：{len(feature_names)} | 输入值数量：{len(feature_values)}")  # 调试用，确认数量一致
+if len(feature_names) != len(feature_values):
+    st.error(f"特征数量不匹配！特征名长度{len(feature_names)}，输入值长度{len(feature_values)}")
+else:
+    # ========== 第二步：初始化解释器+计算SHAP值（修正维度） ==========
     explainer_shap = shap.TreeExplainer(model)
-    # 计算 SHAP 值，用于解释模型的预测
-    shap_values = explainer_shap.shap_values(pd.DataFrame([feature_values], columns=feature_names))
-
-    # 根据预测类别显示 SHAP 强制图
-    if predicted_class == 1:
-        shap.force_plot(explainer_shap.expected_value[1], shap_values[...,1], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
-    else:
-        shap.force_plot(explainer_shap.expected_value[0], shap_values[...,0], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
-
-    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
-    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
+    shap_values = explainer_shap.shap_values(feat_df)  # 输出维度：(1, 特征数)
+    
+    # 核心修正：GBD模型无类别维度，直接取单样本SHAP值（一维数组）
+    base_value = explainer_shap.expected_value  # 标量，去掉[0]/[1]
+    single_shap = shap_values[0, :]  # 取第一个样本的所有特征SHAP值（长度=特征数）
+    
+    # ========== 第三步：绘制+保存力图（适配云端） ==========
+    plt.switch_backend('Agg')  # 云端强制绘图后端
+    plt.clf()  # 清空画布
+    # 绘制力图（无类别切片，无多余参数）
+    shap.force_plot(
+        base_value,
+        single_shap,
+        feat_df,
+        matplotlib=True,
+        show=False  # 关闭自动显示
+    )
+    
+    # 云端缓冲区保存（替代本地文件写入）
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
+    buf.seek(0)
+    
+    # 显示图片
+    st.image(buf, caption='SHAP Force Plot Explanation')
+    plt.close()  # 释放资源
 
 
 # In[2]:
