@@ -22,10 +22,6 @@ import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
 
-import io  # 用于缓冲区保存图片
-
-import streamlit.components.v1 as components  # 用于显示SHAP的HTML
-
 
 
 # 加载训练好的模型（GBD.pkl）
@@ -177,7 +173,6 @@ if st.button("Predict"):
         )
     # 显示建议
     st.write(advice)
-
 
  # SHAP 解释
     st.subheader("SHAP Force Plot Explanation")
