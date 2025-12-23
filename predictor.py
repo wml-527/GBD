@@ -167,32 +167,44 @@ if st.button("Predict"):
     # 显示建议
     st.write(advice)
 
-import matplotlib
-matplotlib.use('Agg')  # 非交互式后端，避免渲染冲突
-import matplotlib.pyplot as plt
-# SHAP 解释（改用HTML交互式版本，避开matplotlib渲染）
-st.subheader("SHAP Force Plot Explanation")
-# 创建 SHAP 解释器
+# ------------------- 替换后的SHAP解释部分 -------------------
+st.subheader("SHAP 特征贡献分析（影响预测的关键特征）")
+# 创建SHAP解释器
 explainer_shap = shap.TreeExplainer(model)
-# 构造当前样本的DataFrame（保证维度匹配）
+# 构造样本DataFrame
 sample_df = pd.DataFrame([feature_values], columns=feature_names)
-# 计算SHAP值（维度：1×17）
+# 计算SHAP值
 shap_values = explainer_shap.shap_values(sample_df)
-# 模型基准值（标量）
-base_value = explainer_shap.expected_value
 
-# 生成SHAP Force Plot的HTML（关键：不用matplotlib）
-shap_html = shap.force_plot(
-    base_value,          # 基准值
-    shap_values,         # SHAP值
-    sample_df,           # 样本特征
-    feature_names=feature_names,
-    show=False,          # 不直接显示，生成HTML字符串
-    matplotlib=False     # 彻底关闭matplotlib渲染
-).html()
+# 1. 绘制单样本特征贡献条形图（核心：无JS依赖，静态图）
+fig, ax = plt.subplots(figsize=(10, 6))
+# 针对二分类模型：shap_values如果是二维（1,17），直接用；如果是三维（2,1,17），取对应类别的SHAP值
+if len(np.array(shap_values).shape) == 3:
+    shap_val = shap_values[predicted_class]  # 取预测类别的SHAP值
+else:
+    shap_val = shap_values
 
-# Streamlit显示HTML（设置宽度/高度适配）
-st.components.v1.html(shap_html, width=800, height=200)
+# 绘制条形图（展示每个特征对预测结果的贡献）
+shap.plots.bar(shap_val[0], feature_names=feature_names, ax=ax)
+ax.set_title(f"预测类别{predicted_class}的特征贡献（红色=正向，蓝色=负向）", fontsize=12)
+
+# Streamlit显示图片
+st.pyplot(fig)
+plt.close()  # 关闭画布，避免内存泄漏
+
+# 2. 可选：补充显示前3个关键特征的依赖关系图（更直观）
+st.subheader("关键特征依赖关系")
+top3_feat = np.argsort(np.abs(shap_val[0]))[-3:]  # 取贡献最大的3个特征
+for feat_idx in top3_feat:
+    feat_name = feature_names[feat_idx]
+    fig, ax = plt.subplots(figsize=(8, 4))
+    shap.dependence_plot(
+        feat_idx, shap_val, sample_df,
+        feature_names=feature_names,
+        ax=ax, show=False
+    )
+    st.pyplot(fig)
+    plt.close()
 
 # In[2]:
 
