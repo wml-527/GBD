@@ -24,11 +24,11 @@ import matplotlib.pyplot as plt
 
 
 # 加载训练好的模型（GBD.pkl）
-model = joblib.load('D:/桌面/科研/周亮模型/网页模型/GBD.pkl')
+model = joblib.load('GBD.pkl')
 
 
 # 从 X_test.csv 文件加载测试数据，以便用于 LIME 解释器
-X_test = pd.read_csv("D:/桌面/科研/周亮模型/网页模型/lasso_data.csv", encoding='gbk')
+X_test = pd.read_csv("lasso_data.csv", encoding='gbk')
 
 # 定义特征名称，对应数据集中的列名
 feature_names = ["性别",	
