@@ -174,7 +174,7 @@ if st.button("Predict"):
     st.write(advice)
 
 import io  # 用于缓冲区保存图片
-    # SHAP 解释
+# SHAP 解释
 st.subheader("SHAP Force Plot Explanation")
 # 创建 SHAP 解释器，基于树模型
 explainer_shap = shap.TreeExplainer(model)
@@ -182,9 +182,9 @@ explainer_shap = shap.TreeExplainer(model)
 feat_df = pd.DataFrame([feature_values], columns=feature_names)
 shap_values = explainer_shap.shap_values(feat_df)
 
-# 核心修正：GBD模型的SHAP值无类别维度，无需按类别切片
-base_value = explainer_shap.expected_value  # 标量，去掉[0]/[1]索引
-single_sample_shap = shap_values[0, :]      # 一维SHAP值，去掉[...,0]/[...,1]切片
+# 核心修正：GBD模型无类别维度，去掉[0]/[1]索引和切片
+base_value = explainer_shap.expected_value  # 标量，无索引
+single_sample_shap = shap_values[0, :]      # 一维SHAP值，无切片
 
 # 绘制SHAP力图（适配云端，关闭自动显示）
 plt.clf()  # 清空画布，避免重复绘图
@@ -193,17 +193,17 @@ shap.force_plot(
     single_sample_shap,
     feat_df,
     matplotlib=True,
-    show=False  # 关键：云端必须加，否则绘图报错
+    show=False  # 云端必须加，避免绘图后端错误
 )
 
-# 核心修正：用缓冲区保存（云端不能写本地文件）
+# 用缓冲区保存（云端无本地写入权限）
 buf = io.BytesIO()
 plt.tight_layout()
 plt.savefig(buf, format='png', bbox_inches='tight', dpi=1200)
 buf.seek(0)  # 重置缓冲区指针
 
-# 显示图片（从缓冲区读取，而非本地文件）
-st.image(buf, caption='SHAP Force Plot Explanation')'SHAP Force Plot Explanation')
+# 显示图片（括号/引号完全匹配，无多余内容）
+st.image(buf, caption='SHAP Force Plot Explanation')
 
 
 # In[2]:
