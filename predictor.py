@@ -168,21 +168,33 @@ if st.button("Predict"):
     st.write(advice)
 
 
-    # SHAP 解释
-    st.subheader("SHAP Force Plot Explanation")
-    # 创建 SHAP 解释器，基于树模型（如随机森林）
-    explainer_shap = shap.TreeExplainer(model)
-    # 计算 SHAP 值，用于解释模型的预测
-    shap_values = explainer_shap.shap_values(pd.DataFrame([feature_values], columns=feature_names))
+# SHAP 解释
+st.subheader("SHAP Force Plot Explanation")
+import numpy as np
+import matplotlib.pyplot as plt
 
-    # 根据预测类别显示 SHAP 强制图
-    if predicted_class == 1:
-        shap.force_plot(explainer_shap.expected_value[1], shap_values[...,1], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
-    else:
-        shap.force_plot(explainer_shap.expected_value[0], shap_values[...,0], pd.DataFrame([feature_values], columns=feature_names), matplotlib=True)
+# 1. 准备单样本特征表格（避免重复构造）
+feature_df = pd.DataFrame([feature_values], columns=feature_names)
 
-    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
-    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
+# 2. 创建 SHAP 解释器
+explainer_shap = shap.TreeExplainer(GBD)  # GBD是你训练好的模型
+
+# 3. 计算单样本SHAP值（核心改1：直接传feature_df，不是重复构造）
+shap_values = explainer_shap.shap_values(feature_df)
+
+# 4. 绘图（核心改2：去掉[...,0]/[...,1]！因为SHAP值只有2维(1,17)）
+plt.figure(figsize=(15, 4))  # 加图大小，避免显示不全
+if predicted_class == 1:
+    # 正类：用基准值[1] + 原始SHAP值
+    shap.force_plot(explainer_shap.expected_value[1], shap_values, feature_df, matplotlib=True)
+else:
+    # 负类：用基准值[0] + SHAP值取反（因为默认SHAP值是正类贡献）
+    shap.force_plot(explainer_shap.expected_value[0], -shap_values, feature_df, matplotlib=True)
+
+# 5. 保存+显示图片（核心改3：加plt.close()避免缓存问题）
+plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
+st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
+plt.close()  # 关闭画布，避免Streamlit重复绘图
 
 
 # In[2]:
