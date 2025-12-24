@@ -1,47 +1,28 @@
 # 导入 Streamlit 库，用于构建 Web 应用
 import streamlit as st
-
 # 导入 joblib 库，用于加载和保存机器学习模型
 import joblib
-
 # 导入 NumPy 库，用于数值计算
 import numpy as np
-
 # 导入 Pandas 库，用于数据处理和操作
 import pandas as pd
-
 # 导入 SHAP 库，用于解释机器学习模型的预测
 import shap
-
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
-
 # 新增：导入图像处理库
 import io
 from PIL import Image
+import streamlit.components.v1 as components  # 新增：用于嵌入HTML
+import matplotlib as mpl  # 新增：字体配置
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt 
-from matplotlib import font_manager
-import streamlit as st
-import joblib
-import numpy as np
-import pandas as pd
-import shap
-import io
-from PIL import Image
-
-# ========== 完整的微软雅黑配置（解决SHAP中文） ==========
-# 1. 注册微软雅黑字体文件（告诉Matplotlib字体在哪）
-font_path = r"C:\Windows\Fonts\msyh.ttc"  # 微软雅黑默认路径
-font_manager.fontManager.addfont(font_path)  # 注册字体
-font_prop = font_manager.FontProperties(fname=font_path)  # 封装字体属性
-
-# 2. 全局字体配置（你的代码基础上补充负号设置）
-mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 你的原配置
-mpl.rcParams['axes.unicode_minus'] = False  # 必须加：解决负号显示
-mpl.rcParams['figure.dpi'] = 100
-mpl.rcParams['savefig.dpi'] = 150
+# ========== 修复字体配置（核心：只指定字体名称，不碰文件路径） ==========
+# 重置matplotlib字体配置，避免读取字体文件
+mpl.rcParams.reset_defaults()
+# 仅配置字体名称（系统会自动匹配可用字体，不会读文件）
+plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']  # SimHei（黑体）兜底+通用无衬线字体
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示
+plt.rcParams['figure.dpi'] = 100  # 提升绘图分辨率
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
@@ -117,43 +98,41 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== 修正后的SHAP力图绘制 ==========
-st.subheader("预测结果解释（SHAP力图）")
-
-# 初始化SHAP解释器
-explainer = shap.TreeExplainer(model)
-# 计算SHAP值（适配分类模型）
-shap_values = explainer.shap_values(features_df)
-
-# 二分类模型：取正类（1）的SHAP值
-if isinstance(shap_values, list) and len(shap_values) == 2:
-    shap_values = shap_values[1]
-
-# 生成SHAP Force Plot的HTML（原生方式，支持中文）
-# 基础值：二分类模型取正类的基准值
-base_value = explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value
-# 生成HTML字符串（不自动显示，返回html代码）
-shap_html = shap.force_plot(
-    base_value=base_value,
-    shap_values=shap_values[0],
-    features=features_df.iloc[0],
-    feature_names=feature_names,
-    out_names="有脂肪肝概率",
-    show=False,  # 关键：不弹出matplotlib窗口，返回html
-    matplotlib=False  # 禁用matplotlib渲染，用原生HTML
-).html()
-
-# 在Streamlit中嵌入HTML（解决中文显示问题）
-import streamlit.components.v1 as components
-components.html(shap_html, height=200, scrolling=True)
-
-# SHAP力图说明
-st.write("""
-**SHAP力图说明：**
-- 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
-- 图中蓝色特征：负向推动预测结果（降低患脂肪肝概率）；
-- 特征条的长度：代表该特征对预测结果的影响程度。
-""")
+    # ========== 最终版SHAP力图（纯HTML渲染，无字体文件依赖） ==========
+    st.subheader("预测结果解释（SHAP力图）")
+    
+    # 初始化SHAP解释器
+    explainer = shap.TreeExplainer(model)
+    # 计算SHAP值（适配分类模型）
+    shap_values = explainer.shap_values(features_df)
+    
+    # 二分类模型：取正类（1）的SHAP值
+    if isinstance(shap_values, list) and len(shap_values) == 2:
+        shap_values = shap_values[1]
+    
+    # 生成SHAP Force Plot的HTML（完全不依赖matplotlib字体）
+    base_value = explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value
+    # 生成HTML字符串
+    shap_force_html = shap.force_plot(
+        base_value=base_value,
+        shap_values=shap_values[0],
+        features=features_df.iloc[0],
+        feature_names=feature_names,
+        out_names="有脂肪肝概率",
+        show=False,  # 不弹出窗口
+        matplotlib=False  # 彻底禁用matplotlib渲染
+    ).html()
+    
+    # 嵌入HTML到Streamlit（核心：HTML渲染中文不依赖系统字体文件）
+    components.html(shap_force_html, height=180, scrolling=False)
+    
+    # SHAP力图说明
+    st.write("""
+    **SHAP力图说明：**
+    - 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
+    - 图中蓝色特征：负向推动预测结果（降低患脂肪肝概率）；
+    - 特征条的长度：代表该特征对预测结果的影响程度。
+    """)
 
 # In[2]:
 
