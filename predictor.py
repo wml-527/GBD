@@ -13,15 +13,12 @@ import matplotlib.pyplot as plt
 # 新增：导入图像处理库
 import io
 from PIL import Image
-import streamlit.components.v1 as components  # 新增：用于嵌入HTML
-import matplotlib as mpl  # 新增：字体配置
+import streamlit.components.v1 as components  # 用于嵌入HTML
 
-# ========== 修复字体配置（核心：只指定字体名称，不碰文件路径） ==========
-# 重置matplotlib字体配置，避免读取字体文件
-mpl.rcParams.reset_defaults()
-# 仅配置字体名称（系统会自动匹配可用字体，不会读文件）
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']  # SimHei（黑体）兜底+通用无衬线字体
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示
+# ========== 兼容所有matplotlib版本的字体配置（移除reset_defaults） ==========
+# 直接配置字体，不依赖高版本方法
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial', 'Helvetica']  # 优先级：黑体>Arial>Helvetica
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 plt.rcParams['figure.dpi'] = 100  # 提升绘图分辨率
 
 # 加载训练好的模型（GBD.pkl）
@@ -98,7 +95,7 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== 最终版SHAP力图（纯HTML渲染，无字体文件依赖） ==========
+    # ========== 最终版SHAP力图（纯HTML渲染，无字体文件/版本依赖） ==========
     st.subheader("预测结果解释（SHAP力图）")
     
     # 初始化SHAP解释器
@@ -110,7 +107,7 @@ if st.button("Predict"):
     if isinstance(shap_values, list) and len(shap_values) == 2:
         shap_values = shap_values[1]
     
-    # 生成SHAP Force Plot的HTML（完全不依赖matplotlib字体）
+    # 生成SHAP Force Plot的HTML（完全不依赖matplotlib）
     base_value = explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value
     # 生成HTML字符串
     shap_force_html = shap.force_plot(
@@ -123,7 +120,7 @@ if st.button("Predict"):
         matplotlib=False  # 彻底禁用matplotlib渲染
     ).html()
     
-    # 嵌入HTML到Streamlit（核心：HTML渲染中文不依赖系统字体文件）
+    # 嵌入HTML到Streamlit（核心：HTML渲染中文无版本/字体依赖）
     components.html(shap_force_html, height=180, scrolling=False)
     
     # SHAP力图说明
