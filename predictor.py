@@ -13,33 +13,35 @@ import pandas as pd
 # 导入 SHAP 库，用于解释机器学习模型的预测
 import shap
 
-# 导入 Matplotlib 库及字体管理模块，解决中文显示
+# 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
-from matplotlib import font_manager
-import matplotlib as mpl  # 新增：导入matplotlib核心模块
 
-# 导入图像处理库
+# 新增：导入图像处理库
 import io
 from PIL import Image
 
-# ========== 强化中文字体配置（关键修改1） ==========
-# 指定Windows系统SimHei字体路径（默认路径，无需修改）
-font_path = r"C:\Windows\Fonts\simhei.ttf"
-# 注册字体（避免SHAP绘图时找不到字体）
-font_manager.fontManager.addfont(font_path)
-font_prop = font_manager.FontProperties(fname=font_path)
+import matplotlib as mpl
+import matplotlib.pyplot as plt 
+from matplotlib import font_manager
+import streamlit as st
+import joblib
+import numpy as np
+import pandas as pd
+import shap
+import io
+from PIL import Image
 
-# 全局强制配置matplotlib所有元素的字体（覆盖SHAP默认字体）
-mpl.rcParams['font.family'] = 'SimHei'  # 直接指定字体名，而非通过FontProperties
-mpl.rcParams['font.sans-serif'] = ['SimHei']
-mpl.rcParams['axes.unicode_minus'] = False
+# ========== 完整的微软雅黑配置（解决SHAP中文） ==========
+# 1. 注册微软雅黑字体文件（告诉Matplotlib字体在哪）
+font_path = r"C:\Windows\Fonts\msyh.ttc"  # 微软雅黑默认路径
+font_manager.fontManager.addfont(font_path)  # 注册字体
+font_prop = font_manager.FontProperties(fname=font_path)  # 封装字体属性
+
+# 2. 全局字体配置（你的代码基础上补充负号设置）
+mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 你的原配置
+mpl.rcParams['axes.unicode_minus'] = False  # 必须加：解决负号显示
 mpl.rcParams['figure.dpi'] = 100
 mpl.rcParams['savefig.dpi'] = 150
-# 新增：指定刻度、标题等元素的字体
-mpl.rcParams['xtick.labelsize'] = 10
-mpl.rcParams['ytick.labelsize'] = 10
-mpl.rcParams['axes.labelsize'] = 12
-mpl.rcParams['axes.titlesize'] = 14
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
@@ -83,7 +85,7 @@ feature_values = [
     谷丙转氨酶,谷草酶谷丙酶,总蛋白,白蛋白,血肌酐,血尿酸,空腹血糖,
     白细胞,淋巴细胞计数,平均血红蛋白,血小板
 ]  
-# 强制转换为float，确保与模型训练时类型一致
+# 关键：强制转换为float，确保与模型训练时类型一致
 feature_values = [float(x) for x in feature_values]
 features = np.array([feature_values], dtype=np.float32)
 features_df = pd.DataFrame(features, columns=feature_names, dtype=np.float32)
@@ -115,25 +117,19 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== SHAP力图绘制（修复中文显示+空白问题） ==========
-    st.subheader("预测结果解释（SHAP力图）")
-    
-    # 清空matplotlib缓存，避免渲染冲突
+    # ========== 修正后的SHAP力图绘制 ==========
+   st.subheader("预测结果解释（SHAP力图）")
     plt.clf()
     plt.close('all')
     
-    # 初始化SHAP解释器（适配树模型）
     explainer = shap.TreeExplainer(model)
-    # 计算SHAP值（二分类模型取正类1的SHAP值）
     shap_values = explainer.shap_values(features_df)
     if isinstance(shap_values, list) and len(shap_values) == 2:
         shap_values = shap_values[1]
     
-    # 生成SHAP Force Plot并转为图像
     buf = io.BytesIO()
-    
-    # 绘制力图（关键修改2：显式控制字体）
-    fig, ax = plt.subplots(figsize=(14, 5))  # 显式创建画布和轴
+    # 显式创建画布和轴，便于控制字体
+    fig, ax = plt.subplots(figsize=(14, 5))
     shap.force_plot(
         explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value,
         shap_values[0],
@@ -142,38 +138,28 @@ if st.button("Predict"):
         out_names="有脂肪肝概率",
         show=False,
         matplotlib=True,
-        ax=ax,  # 指定自定义的轴
+        ax=ax,  # 指定自定义轴
         plot_cmap=["#3366FF", "#FF6633"]
     )
     
-    # 关键修改3：强制设置轴上所有文本的字体
-    for text in ax.texts:
-        text.set_fontproperties(font_prop)  # 给每个文本元素指定中文字体
-    for label in ax.get_xticklabels() + ax.get_yticklabels():
+    # 核心补充：强制给SHAP图的所有文本元素设置微软雅黑
+    for text in ax.texts:  # 遍历所有文本（特征名、数值等）
+        text.set_fontproperties(font_prop)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():  # 遍历刻度标签
         label.set_fontproperties(font_prop)
     
-    # 保存图像（bbox_inches='tight'防止文字被截断）
+    # 保存并显示图片
     plt.savefig(
         buf, 
         format='png', 
         bbox_inches='tight', 
         dpi=200,
         pad_inches=0.1,
-        facecolor='white'  # 新增：设置背景色，避免透明背景文字显示异常
+        facecolor='white'  # 避免透明背景文字模糊
     )
     buf.seek(0)
     img = Image.open(buf)
-    
-    # Streamlit展示图像（自适应宽度）
     st.image(img, use_column_width=True)
-    
-    # SHAP力图说明
-    st.write("""
-    **SHAP力图说明：**
-    - 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
-    - 图中蓝色特征：负向推动预测结果（降低患脂肪肝概率）；
-    - 特征条的长度：代表该特征对预测结果的影响程度。
-    """)
 
 # In[2]:
 
