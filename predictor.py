@@ -53,6 +53,7 @@ feature_values = [
     白细胞,淋巴细胞计数,平均血红蛋白,血小板
 ]  
 feature_values = [float(x) for x in feature_values]
+feature_values = [round(val, 2) for val in feature_values]# 新增：四舍五入到2位小数，解决浮点数精度显示问题
 features = np.array([feature_values], dtype=np.float32)
 features_df = pd.DataFrame(features, columns=feature_names, dtype=np.float32)
 
