@@ -168,22 +168,31 @@ if st.button("Predict"):
     # 显示建议
     st.write(advice)
 
- # SHAP 解释
-    st.subheader("SHAP Force Plot Explanation")
-    # 创建 SHAP 解释器，基于树模型（如随机森林）
-    explainer_shap = shap.TreeExplainer(model)
-    # 计算 SHAP 值，用于解释模型的预测
-    shap_values = explainer(X)
-    shap_values.shape
-
-    # 根据预测类别显示 SHAP 强制图
-    if predicted_class == 1:
-        shap.force_plot( matplotlib=True)
-    else:
-        shap.force_plot(matplotlib=True)
-
-    plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
-    st.image("shap_force_plot.png", caption='SHAP Force Plot Explanation')
+ # ========== 新增：生成并展示SHAP Force图（力图） ==========
+    st.subheader("预测结果解释（SHAP力图）")
+    # 初始化SHAP解释器（针对树模型）
+    explainer = shap.TreeExplainer(model)
+    # 计算当前输入特征的SHAP值
+    shap_values = explainer(features_df)
+    
+    # 绘制SHAP Force图（matplotlib版本，适配Streamlit）
+    fig, ax = plt.subplots(figsize=(12, 4))  # 设置图的大小
+    shap.plots.force(
+        shap_values[0],  # 取第一条（仅当前输入）的SHAP值
+        matplotlib=True,
+        show=False,  # 不自动显示，交给Streamlit处理
+        feature_names=feature_names  # 关联特征名称
+    )
+    plt.tight_layout()  # 调整布局避免文字重叠
+    st.pyplot(fig)  # Streamlit展示matplotlib图
+    
+    # 可选：补充说明SHAP力图含义
+    st.write("""
+    **SHAP力图说明：**
+    - 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
+    - 图中蓝色特征：负向推动预测结果（降低患脂肪肝概率）；
+    - 特征条的长度：代表该特征对预测结果的影响程度。
+    """)
 
 # In[2]:
 
