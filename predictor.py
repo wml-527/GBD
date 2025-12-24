@@ -16,35 +16,23 @@ import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
 
+# 关闭matplotlib的警告（可选，避免冗余输出）
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 解决中文显示问题
+plt.rcParams['axes.unicode_minus'] = False
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
 
-
-# 从 X_test.csv 文件加载测试数据，以便用于 LIME 解释器
+# 从 X_test.csv 文件加载测试数据（若不需要可注释，此处保留你的原有代码）
 X_test = pd.read_csv("lasso_data.csv", encoding='gbk')
-X = X_test.iloc[:, 1:]
 
 # 定义特征名称，对应数据集中的列名
-feature_names = ["性别",	
-                 "年龄",
-                 "体质指数",
-                 "甘油三酯",
-                 "低密度脂蛋白胆固醇",
-                 "高密度脂蛋白胆固醇",
-                 "谷丙转氨酶",
-                 "谷草酶谷丙酶",
-                 "总蛋白",
-                 "白蛋白",
-                 "血肌酐",
-                 "血尿酸",
-                 "空腹血糖",
-                 "白细胞",
-                 "淋巴细胞计数",
-                 "平均血红蛋白",
-                 "血小板"
+feature_names = [
+    "性别", "年龄", "体质指数", "甘油三酯", "低密度脂蛋白胆固醇",
+    "高密度脂蛋白胆固醇", "谷丙转氨酶", "谷草酶谷丙酶", "总蛋白", "白蛋白",
+    "血肌酐", "血尿酸", "空腹血糖", "白细胞", "淋巴细胞计数",
+    "平均血红蛋白", "血小板"
 ]
-
 
 # StreamLit 用户界面
 st.title("脂肪肝预测器")  # 设置网页标题
@@ -56,119 +44,59 @@ st.title("脂肪肝预测器")  # 设置网页标题
 性别 = st.selectbox("性别:", options=[0, 1], format_func=lambda x: "男" if x == 1 else "女")
 
 体质指数 = st.number_input("体质指数:", min_value=0, max_value=30, value=23)
-
-
 甘油三酯 = st.number_input("甘油三酯:", min_value=0.1, max_value=20.0, value=1.5, step=0.1)
+低密度脂蛋白胆固醇 = st.number_input("低密度脂蛋白胆固醇:", min_value=0.5, max_value=10.0, value=2.3, step=0.1)
+高密度脂蛋白胆固醇 = st.number_input("高密度脂蛋白胆固醇:", min_value=0.1, max_value=5.0, value=1.2, step=0.1)
+谷丙转氨酶 = st.number_input("谷丙转氨酶:", min_value=0, max_value=500, value=20, step=1)
+谷草酶谷丙酶 = st.number_input("谷草酶谷丙酶:", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+总蛋白 = st.number_input("总蛋白:", min_value=40, max_value=100, value=70, step=1)
+白蛋白 = st.number_input("白蛋白:", min_value=20, max_value=70, value=45, step=1)
+血肌酐 = st.number_input("血肌酐:", min_value=10, max_value=500, value=70, step=1)
+血尿酸 = st.number_input("血尿酸:", min_value=50, max_value=1000, value=300, step=1)
+空腹血糖 = st.number_input("空腹血糖:", min_value=2.0, max_value=20.0, value=5.0, step=0.1)
+白细胞 = st.number_input("白细胞:", min_value=1.0, max_value=30.0, value=7.0, step=0.1)
+淋巴细胞计数 = st.number_input("淋巴细胞计数:", min_value=0.1, max_value=10.0, value=2.0, step=0.1)
+平均血红蛋白 = st.number_input("平均血红蛋白:", min_value=20, max_value=50, value=30, step=1)
+血小板 = st.number_input("血小板:", min_value=20, max_value=1000, value=200, step=1)
 
-
-低密度脂蛋白胆固醇 = st.number_input("低密度脂蛋白胆固醇:", min_value=0.5,
-        max_value=10.0,
-        value=2.3,
-        step=0.1)
-
-
-高密度脂蛋白胆固醇 = st.number_input("高密度脂蛋白胆固醇:", min_value=0.1,
-        max_value=5.0,
-        value=1.2,
-        step=0.1)
-
-
-谷丙转氨酶 = st.number_input("谷丙转氨酶:",  min_value=0,
-        max_value=500,
-        value=20,
-        step=1)
-
-
-谷草酶谷丙酶 = st.number_input("谷草酶谷丙酶:",  min_value=0.1,
-        max_value=5.0,
-        value=1.0,
-        step=0.1)
-
-
-总蛋白 = st.number_input("总蛋白:", min_value=40,
-        max_value=100,
-        value=70,
-        step=1)
-
-
-白蛋白 = st.number_input("白蛋白:", min_value=20,
-        max_value=70,
-        value=45,
-        step=1)
-
-血肌酐 = st.number_input("血肌酐:", min_value=10,
-        max_value=500,
-        value=70,
-        step=1)
-
-
-血尿酸 = st.number_input("血尿酸:", min_value=50,
-        max_value=1000,
-        value=300,
-        step=1)
-
-
-空腹血糖 = st.number_input("空腹血糖:", min_value=2.0,
-        max_value=20.0,
-        value=5.0,
-        step=0.1)
-
-白细胞 = st.number_input("白细胞:", min_value=1.0,
-        max_value=30.0,
-        value=7.0,
-        step=0.1)
-
-淋巴细胞计数 = st.number_input("淋巴细胞计数:", min_value=0.1,
-        max_value=10.0,
-        value=2.0,
-        step=0.1)
-
-平均血红蛋白 = st.number_input("平均血红蛋白:", min_value=20,
-        max_value=50,
-        value=30,
-        step=1)
-
-血小板 = st.number_input("血小板:", min_value=20,
-        max_value=1000,
-        value=200,
-        step=1)
 # 处理输入数据并进行预测
-feature_values = [性别,年龄,体质指数,甘油三酯,低密度脂蛋白胆固醇,高密度脂蛋白胆固醇,谷丙转氨酶,谷草酶谷丙酶,总蛋白,白蛋白,血肌酐,
-                  血尿酸,空腹血糖,白细胞,淋巴细胞计数,平均血红蛋白,血小板]  # 将用户输入的特征值存入列表
-features = np.array([feature_values])  # 将特征转换为 NumPy 数组，适用于模型输入
+feature_values = [
+    性别,年龄,体质指数,甘油三酯,低密度脂蛋白胆固醇,高密度脂蛋白胆固醇,
+    谷丙转氨酶,谷草酶谷丙酶,总蛋白,白蛋白,血肌酐,血尿酸,空腹血糖,
+    白细胞,淋巴细胞计数,平均血红蛋白,血小板
+]  # 将用户输入的特征值存入列表
+features = np.array([feature_values])  # 转换为模型输入的数组格式
+# 转换为DataFrame（方便SHAP关联特征名称）
+features_df = pd.DataFrame(features, columns=feature_names)
 
 # 当用户点击 "Predict" 按钮时执行以下代码
 if st.button("Predict"):
-    # 预测类别（0：无心脏病，1：有心脏病）
+    # 预测类别（0：无脂肪肝，1：有脂肪肝）
     predicted_class = model.predict(features)[0]
     # 预测类别的概率
     predicted_proba = model.predict_proba(features)[0]
 
     # 显示预测结果
-    st.write(f"**Predicted Class:** {predicted_class} (1: Disease, 0: No Disease)")
-    st.write(f"**Prediction Probabilities:** {predicted_proba}")
-
+    st.write(f"**预测类别:** {predicted_class} (1: 有脂肪肝, 0: 无脂肪肝)")
+    st.write(f"**预测概率:** {predicted_proba}")
 
     # 根据预测结果生成建议
     probability = predicted_proba[predicted_class] * 100
-    # 如果预测类别为 1（高风险）
     if predicted_class == 1:
         advice = (
-            f"According to our model, you have a high risk of heart disease. "
-            f"The model predicts that your probability of having heart disease is {probability:.1f}%. "
-            "It's advised to consult with your healthcare provider for further evaluation and possible intervention."
+            f"根据模型预测，你有较高的脂肪肝风险。"
+            f"模型预测你患脂肪肝的概率为 {probability:.1f}%。"
+            "建议及时咨询医生，进行进一步检查和干预。"
         )
-    # 如果预测类别为 0（低风险）
     else:
         advice = (
-            f"According to our model, you have a low risk of heart disease. "
-            f"The model predicts that your probability of not having heart disease is {probability:.1f}%. "
-            "However, maintaining a healthy lifestyle is important. Please continue regular check-ups with your healthcare provider."
+            f"根据模型预测，你患脂肪肝的风险较低。"
+            f"模型预测你无脂肪肝的概率为 {probability:.1f}%。"
+            "建议保持健康的生活方式，并定期进行体检。"
         )
-    # 显示建议
     st.write(advice)
 
- # ========== 新增：生成并展示SHAP Force图（力图） ==========
+    # ========== 新增：生成并展示SHAP Force图（力图） ==========
     st.subheader("预测结果解释（SHAP力图）")
     # 初始化SHAP解释器（针对树模型）
     explainer = shap.TreeExplainer(model)
