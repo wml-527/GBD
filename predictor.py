@@ -118,48 +118,42 @@ if st.button("Predict"):
     st.write(advice)
 
     # ========== 修正后的SHAP力图绘制 ==========
-   st.subheader("预测结果解释（SHAP力图）")
-    plt.clf()
-    plt.close('all')
-    
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(features_df)
-    if isinstance(shap_values, list) and len(shap_values) == 2:
-        shap_values = shap_values[1]
-    
-    buf = io.BytesIO()
-    # 显式创建画布和轴，便于控制字体
-    fig, ax = plt.subplots(figsize=(14, 5))
-    shap.force_plot(
-        explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value,
-        shap_values[0],
-        features_df.iloc[0],
-        feature_names=feature_names,
-        out_names="有脂肪肝概率",
-        show=False,
-        matplotlib=True,
-        ax=ax,  # 指定自定义轴
-        plot_cmap=["#3366FF", "#FF6633"]
-    )
-    
-    # 核心补充：强制给SHAP图的所有文本元素设置微软雅黑
-    for text in ax.texts:  # 遍历所有文本（特征名、数值等）
-        text.set_fontproperties(font_prop)
-    for label in ax.get_xticklabels() + ax.get_yticklabels():  # 遍历刻度标签
-        label.set_fontproperties(font_prop)
-    
-    # 保存并显示图片
-    plt.savefig(
-        buf, 
-        format='png', 
-        bbox_inches='tight', 
-        dpi=200,
-        pad_inches=0.1,
-        facecolor='white'  # 避免透明背景文字模糊
-    )
-    buf.seek(0)
-    img = Image.open(buf)
-    st.image(img, use_column_width=True)
+st.subheader("预测结果解释（SHAP力图）")
+
+# 初始化SHAP解释器
+explainer = shap.TreeExplainer(model)
+# 计算SHAP值（适配分类模型）
+shap_values = explainer.shap_values(features_df)
+
+# 二分类模型：取正类（1）的SHAP值
+if isinstance(shap_values, list) and len(shap_values) == 2:
+    shap_values = shap_values[1]
+
+# 生成SHAP Force Plot的HTML（原生方式，支持中文）
+# 基础值：二分类模型取正类的基准值
+base_value = explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value
+# 生成HTML字符串（不自动显示，返回html代码）
+shap_html = shap.force_plot(
+    base_value=base_value,
+    shap_values=shap_values[0],
+    features=features_df.iloc[0],
+    feature_names=feature_names,
+    out_names="有脂肪肝概率",
+    show=False,  # 关键：不弹出matplotlib窗口，返回html
+    matplotlib=False  # 禁用matplotlib渲染，用原生HTML
+).html()
+
+# 在Streamlit中嵌入HTML（解决中文显示问题）
+import streamlit.components.v1 as components
+components.html(shap_html, height=200, scrolling=True)
+
+# SHAP力图说明
+st.write("""
+**SHAP力图说明：**
+- 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
+- 图中蓝色特征：负向推动预测结果（降低患脂肪肝概率）；
+- 特征条的长度：代表该特征对预测结果的影响程度。
+""")
 
 # In[2]:
 
