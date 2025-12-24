@@ -29,7 +29,7 @@ feature_names = [
 st.title("脂肪肝预测器")
 
 # 输入框
-年龄 = st.number_input("年龄(Age):", min_value=0, max_value=120, value=None,placeholder="请输入指标"  # 输入框内的提示文字，替代默认值)
+年龄 = st.number_input("年龄(Age):", min_value=0, max_value=120, value=None,placeholder="请输入指标" )
 性别 = st.selectbox("性别(Gender):", options=[0, 1], format_func=lambda x: "男" if x == 1 else "女")
 体质指数 = st.number_input("体质指数(BMI):", min_value=0, max_value=30, value=None,placeholder="请输入指标")
 甘油三酯 = st.number_input("甘油三酯(TG):", min_value=0.1, max_value=20.0, step=0.1,value=None,placeholder="请输入指标")
