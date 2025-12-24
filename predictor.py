@@ -30,7 +30,7 @@ st.title("脂肪肝预测器")
 
 # 输入框
 年龄 = st.number_input("年龄(Age):", min_value=0, max_value=120, value=0)
-性别 = st.selectbox("性别(Gender):", options=[0, 1], format_func=lambda x: "男" if x == 1 else "女", value=0)
+性别 = st.selectbox("性别(Gender):", options=[0, 1], format_func=lambda x: "男" if x == 1 else "女")
 体质指数 = st.number_input("体质指数(BMI):", min_value=0, max_value=30, value=0)
 甘油三酯 = st.number_input("甘油三酯(TG):", min_value=0.0, max_value=20.0, value=0.0, step=0.1)
 低密度脂蛋白胆固醇 = st.number_input("低密度脂蛋白胆固醇(LDL-C):", min_value=0.0, max_value=10.0, value=0.0, step=0.1)
