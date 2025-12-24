@@ -10,13 +10,12 @@ import pandas as pd
 import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm  # 新增：字体管理
+import matplotlib.font_manager as fm
 # 新增：导入图像处理库
 import io
 from PIL import Image
 
 # ========== 彻底解决matplotlib中文显示（兼容所有版本） ==========
-# 方案1：注册系统中文字体（无需指定路径，自动查找）
 def register_chinese_font():
     try:
         # 自动查找系统中的黑体/SimHei
@@ -27,10 +26,10 @@ def register_chinese_font():
                 plt.rcParams['font.family'] = font_prop.get_name()
                 break
     except:
-        # 兜底：使用matplotlib内置字体，中文显示为方块则替换为拼音/英文
+        # 兜底：使用matplotlib内置字体
         plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
     plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示
-    plt.rcParams['figure.dpi'] = 150  # 提升分辨率，避免模糊
+    plt.rcParams['figure.dpi'] = 150  # 提升分辨率
     plt.rcParams['savefig.dpi'] = 150
 
 # 执行字体注册
@@ -39,14 +38,14 @@ register_chinese_font()
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
 
-# 定义特征名称（若中文仍显示方框，可替换为拼音/英文）
+# 定义特征名称（中文/拼音二选一）
 feature_names = [
     "性别", "年龄", "体质指数", "甘油三酯", "低密度脂蛋白胆固醇",
     "高密度脂蛋白胆固醇", "谷丙转氨酶", "谷草酶谷丙酶", "总蛋白", "白蛋白",
     "血肌酐", "血尿酸", "空腹血糖", "白细胞", "淋巴细胞计数",
     "平均血红蛋白", "血小板"
 ]
-# 备选：拼音版（若中文仍显示方框，取消注释替换）
+# 拼音版备选（中文显示方框时取消注释）
 # feature_names = [
 #     "XingBie", "NianLing", "TiZhiZhiShu", "GanYouSanZhi", "DiMiDuZhiDanBaiDanGu chun",
 #     "GaoMiDuZhiDanBaiDanGu chun", "GuBingZhuanAnMei", "GuCaoMeiGuBingMei", "ZongDanBai", "BaiDanBai",
@@ -55,7 +54,7 @@ feature_names = [
 # ]
 
 # StreamLit 用户界面
-st.title("脂肪肝预测器")  # 设置网页标题
+st.title("脂肪肝预测器")
 
 # 年龄：数值输入框
 年龄 = st.number_input("年龄:", min_value=0, max_value=120, value=41)
@@ -85,23 +84,21 @@ feature_values = [
     谷丙转氨酶,谷草酶谷丙酶,总蛋白,白蛋白,血肌酐,血尿酸,空腹血糖,
     白细胞,淋巴细胞计数,平均血红蛋白,血小板
 ]  
-# 关键：强制转换为float，确保与模型训练时类型一致
 feature_values = [float(x) for x in feature_values]
 features = np.array([feature_values], dtype=np.float32)
 features_df = pd.DataFrame(features, columns=feature_names, dtype=np.float32)
 
 # 当用户点击 "Predict" 按钮时执行以下代码
 if st.button("Predict"):
-    # 预测类别（0：无脂肪肝，1：有脂肪肝）
+    # 预测类别和概率
     predicted_class = model.predict(features)[0]
-    # 预测类别的概率
     predicted_proba = model.predict_proba(features)[0]
 
     # 显示预测结果
     st.write(f"**预测类别:** {predicted_class} (1: 有脂肪肝, 0: 无脂肪肝)")
     st.write(f"**预测概率:** {predicted_proba}")
 
-    # 根据预测结果生成建议
+    # 生成建议
     probability = predicted_proba[predicted_class] * 100
     if predicted_class == 1:
         advice = (
@@ -117,10 +114,10 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== 最终版SHAP力图（matplotlib渲染，无JS依赖） ==========
+    # ========== 修复SHAP力图（移除ax参数，兼容旧版本SHAP） ==========
     st.subheader("预测结果解释（SHAP力图）")
     
-    # 清空matplotlib缓存，避免多图重叠/空白
+    # 清空matplotlib缓存
     plt.clf()
     plt.close('all')
     
@@ -133,8 +130,8 @@ if st.button("Predict"):
     if isinstance(shap_values, list) and len(shap_values) == 2:
         shap_values = shap_values[1]
     
-    # 生成SHAP Force Plot（matplotlib渲染）
-    fig, ax = plt.subplots(figsize=(12, 4))
+    # 生成SHAP Force Plot（移除ax参数，兼容旧版本）
+    # 关键：旧版本SHAP无需指定ax，直接matplotlib=True渲染
     shap.force_plot(
         explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value,
         shap_values[0],
@@ -143,9 +140,10 @@ if st.button("Predict"):
         out_names="有脂肪肝概率",
         show=False,
         matplotlib=True,
-        ax=ax  # 指定绘图的轴，避免空白
+        figsize=(12, 4)  # 仅保留figsize，移除ax参数
     )
-    # 调整布局，避免特征名被截断
+    
+    # 调整布局，避免特征名截断
     plt.tight_layout()
     
     # 保存到缓冲区并显示
@@ -155,8 +153,8 @@ if st.button("Predict"):
     img = Image.open(buf)
     st.image(img, use_column_width=True)
     
-    # 关闭绘图，释放资源
-    plt.close(fig)
+    # 关闭绘图释放资源
+    plt.close('all')
     
     # SHAP力图说明
     st.write("""
