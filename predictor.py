@@ -11,41 +11,46 @@ import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
+# 新增：导入系统路径检查库
+import os
 # 新增：导入图像处理库
 import io
 from PIL import Image
 
-# ========== 彻底解决matplotlib中文显示（兼容所有版本） ==========
-def register_chinese_font():
-    try:
-        # 自动查找系统中的黑体/SimHei
-        font_paths = fm.findSystemFonts(fontpaths=None, fontext='ttf')
-        for path in font_paths:
-            if 'simhei' in path.lower() or '黑体' in path:
-                font_prop = fm.FontProperties(fname=path)
-                plt.rcParams['font.family'] = font_prop.get_name()
-                break
-    except:
-        # 兜底：使用matplotlib内置字体
-        plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
-    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示
-    plt.rcParams['figure.dpi'] = 150  # 提升分辨率
-    plt.rcParams['savefig.dpi'] = 150
+# ========== 强制指定中文字体（适配Windows，其他系统替换路径） ==========
+def get_chinese_font():
+    # Windows系统默认黑体路径（无需修改）
+    font_path = 'C:\\Windows\\Fonts\\simhei.ttf'
+    # 若为MacOS，替换为：'/Library/Fonts/PingFang SC.ttc'
+    # 若为Linux，替换为：'/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc'
+    
+    if os.path.exists(font_path):
+        font_prop = fm.FontProperties(fname=font_path, size=10)  # 指定字体+字号
+        # 全局配置兜底
+        plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
+        plt.rcParams['axes.unicode_minus'] = False
+        plt.rcParams['figure.dpi'] = 150
+        plt.rcParams['savefig.dpi'] = 150
+        return font_prop
+    else:
+        # 无中文字体时返回默认字体（特征名显示拼音）
+        st.warning("未找到中文字体，特征名将显示为拼音，请替换feature_names为拼音版")
+        return fm.FontProperties(size=10)
 
-# 执行字体注册
-register_chinese_font()
+# 获取字体属性（后续强制应用到SHAP图）
+chinese_font = get_chinese_font()
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
 
-# 定义特征名称（中文/拼音二选一）
+# 定义特征名称（中文）
 feature_names = [
     "性别", "年龄", "体质指数", "甘油三酯", "低密度脂蛋白胆固醇",
     "高密度脂蛋白胆固醇", "谷丙转氨酶", "谷草酶谷丙酶", "总蛋白", "白蛋白",
     "血肌酐", "血尿酸", "空腹血糖", "白细胞", "淋巴细胞计数",
     "平均血红蛋白", "血小板"
 ]
-# 拼音版备选（中文显示方框时取消注释）
+# 拼音版备选（无中文字体时取消注释）
 # feature_names = [
 #     "XingBie", "NianLing", "TiZhiZhiShu", "GanYouSanZhi", "DiMiDuZhiDanBaiDanGu chun",
 #     "GaoMiDuZhiDanBaiDanGu chun", "GuBingZhuanAnMei", "GuCaoMeiGuBingMei", "ZongDanBai", "BaiDanBai",
@@ -114,24 +119,23 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== 修复SHAP力图（移除ax参数，兼容旧版本SHAP） ==========
+    # ========== 最终版SHAP力图（强制设置字体，解决方框） ==========
     st.subheader("预测结果解释（SHAP力图）")
-    
+
     # 清空matplotlib缓存
     plt.clf()
     plt.close('all')
-    
+
     # 初始化SHAP解释器
     explainer = shap.TreeExplainer(model)
     # 计算SHAP值（适配分类模型）
     shap_values = explainer.shap_values(features_df)
-    
+
     # 二分类模型：取正类（1）的SHAP值
     if isinstance(shap_values, list) and len(shap_values) == 2:
         shap_values = shap_values[1]
-    
-    # 生成SHAP Force Plot（移除ax参数，兼容旧版本）
-    # 关键：旧版本SHAP无需指定ax，直接matplotlib=True渲染
+
+    # 生成SHAP Force Plot（matplotlib渲染）
     shap.force_plot(
         explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value,
         shap_values[0],
@@ -140,22 +144,27 @@ if st.button("Predict"):
         out_names="有脂肪肝概率",
         show=False,
         matplotlib=True,
-        figsize=(12, 4)  # 仅保留figsize，移除ax参数
+        figsize=(12, 4)
     )
-    
-    # 调整布局，避免特征名截断
+
+    # 关键：强制给SHAP图的所有文本设置中文字体
+    ax = plt.gca()  # 获取当前绘图轴
+    for text_element in ax.texts:
+        text_element.set_fontproperties(chinese_font)  # 应用黑体字体
+
+    # 调整布局，避免文本截断
     plt.tight_layout()
-    
+
     # 保存到缓冲区并显示
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
     buf.seek(0)
     img = Image.open(buf)
     st.image(img, use_column_width=True)
-    
+
     # 关闭绘图释放资源
     plt.close('all')
-    
+
     # SHAP力图说明
     st.write("""
     **SHAP力图说明：**
