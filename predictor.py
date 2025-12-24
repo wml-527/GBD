@@ -16,15 +16,17 @@ import shap
 # 导入 Matplotlib 库，用于数据可视化
 import matplotlib.pyplot as plt
 
+# 新增：导入图像处理库
+import io
+from PIL import Image
+
 # 关闭matplotlib的警告（可选，避免冗余输出）
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 解决中文显示问题
 plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['figure.dpi'] = 100  # 提升绘图分辨率
 
 # 加载训练好的模型（GBD.pkl）
 model = joblib.load('GBD.pkl')
-
-# 从 X_test.csv 文件加载测试数据（若不需要可注释，此处保留你的原有代码）
-X_test = pd.read_csv("lasso_data.csv", encoding='gbk')
 
 # 定义特征名称，对应数据集中的列名
 feature_names = [
@@ -64,10 +66,11 @@ feature_values = [
     性别,年龄,体质指数,甘油三酯,低密度脂蛋白胆固醇,高密度脂蛋白胆固醇,
     谷丙转氨酶,谷草酶谷丙酶,总蛋白,白蛋白,血肌酐,血尿酸,空腹血糖,
     白细胞,淋巴细胞计数,平均血红蛋白,血小板
-]  # 将用户输入的特征值存入列表
-features = np.array([feature_values])  # 转换为模型输入的数组格式
-# 转换为DataFrame（方便SHAP关联特征名称）
-features_df = pd.DataFrame(features, columns=feature_names)
+]  
+# 关键：强制转换为float，确保与模型训练时类型一致
+feature_values = [float(x) for x in feature_values]
+features = np.array([feature_values], dtype=np.float32)
+features_df = pd.DataFrame(features, columns=feature_names, dtype=np.float32)
 
 # 当用户点击 "Predict" 按钮时执行以下代码
 if st.button("Predict"):
@@ -96,25 +99,53 @@ if st.button("Predict"):
         )
     st.write(advice)
 
-    # ========== 新增：生成并展示SHAP Force图（力图） ==========
+    # ========== 修正后的SHAP力图绘制 ==========
     st.subheader("预测结果解释（SHAP力图）")
-    # 初始化SHAP解释器（针对树模型）
+    
+    # 清空matplotlib缓存，避免空白
+    plt.clf()
+    plt.close('all')
+    
+    # 初始化SHAP解释器
     explainer = shap.TreeExplainer(model)
-    # 计算当前输入特征的SHAP值
-    shap_values = explainer(features_df)
+    # 计算SHAP值（适配分类模型）
+    shap_values = explainer.shap_values(features_df)
     
-    # 绘制SHAP Force图（matplotlib版本，适配Streamlit）
-    fig, ax = plt.subplots(figsize=(12, 4))  # 设置图的大小
-    shap.plots.force(
-        shap_values[0],  # 取第一条（仅当前输入）的SHAP值
+    # 二分类模型：取正类（1）的SHAP值
+    if isinstance(shap_values, list) and len(shap_values) == 2:
+        shap_values = shap_values[1]
+    
+    # 生成SHAP Force Plot并转为图像
+    buf = io.BytesIO()
+    # 经典force_plot API（稳定，不易空白）
+    shap.force_plot(
+        # 基础值（模型的默认预测值）
+        explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value,
+        # 当前输入的SHAP值
+        shap_values[0],
+        # 当前输入的特征值
+        features_df.iloc[0],
+        # 特征名称
+        feature_names=feature_names,
+        # 输出名称（可视化时的标签）
+        out_names="有脂肪肝概率",
+        # 不自动显示
+        show=False,
+        # 使用matplotlib渲染
         matplotlib=True,
-        show=False,  # 不自动显示，交给Streamlit处理
-        feature_names=feature_names  # 关联特征名称
+        # 图大小
+        figsize=(12, 4)
     )
-    plt.tight_layout()  # 调整布局避免文字重叠
-    st.pyplot(fig)  # Streamlit展示matplotlib图
+    # 保存到缓冲区（解决Streamlit渲染空白）
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+    buf.seek(0)
+    # 转为PIL图像
+    img = Image.open(buf)
     
-    # 可选：补充说明SHAP力图含义
+    # Streamlit展示图像
+    st.image(img, use_column_width=True)
+    
+    # SHAP力图说明
     st.write("""
     **SHAP力图说明：**
     - 图中红色特征：正向推动预测结果（增加患脂肪肝概率）；
